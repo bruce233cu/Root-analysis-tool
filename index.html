@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>标题词根统计</title>
+  <style>
+    :root {
+      --bg: #f5f7f4;
+      --surface: #ffffff;
+      --surface-alt: #eef3ec;
+      --warn-bg: #fff3bf;
+      --warn-border: #f0c36d;
+      --compare-bg: #ffe1d6;
+      --compare-border: #e36b3f;
+      --line: #d5ddd1;
+      --text: #203126;
+      --muted: #647565;
+      --accent: #2f6f4f;
+      --accent-soft: #dceadf;
+      --danger: #b42318;
+      --shadow: 0 12px 28px rgba(32, 49, 38, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 79, 0.10), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(188, 212, 194, 0.75), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 380px minmax(0, 1fr);
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid var(--line);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .content {
+      padding: 24px;
+      min-width: 0;
+    }
+
+    h1, h2, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    input[type="file"],
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input[type="file"] {
+      padding: 10px 12px;
+    }
+
+    select {
+      padding: 10px 12px;
+      min-height: 44px;
+    }
+
+    textarea {
+      padding: 12px;
+      resize: vertical;
+      min-height: 96px;
+      line-height: 1.5;
+    }
+
+    textarea.roots {
+      min-height: 160px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.secondary {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.error {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric,
+    .result-card,
+    .hint {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      padding: 16px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 25px;
+      line-height: 1.05;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .hint {
+      padding: 18px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .result-card {
+      overflow: auto;
+      max-height: calc(100vh - 230px);
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fbf7;
+      color: var(--muted);
+      font-size: 12px;
+      z-index: 1;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .warn-row td {
+      background: var(--warn-bg);
+    }
+
+    .warn-row td:first-child {
+      box-shadow: inset 3px 0 0 var(--warn-border);
+    }
+
+    .compare-row td {
+      background: var(--compare-bg);
+    }
+
+    .compare-row td:first-child {
+      box-shadow: inset 3px 0 0 var(--compare-border);
+    }
+
+    .compare-note {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(227, 107, 63, 0.14);
+      color: #b54708;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .number {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .delta-down {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .delta-up {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 580px) {
+      .panel,
+      .content {
+        padding: 16px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <div>
+        <h1>标题词根统计</h1>
+        <p class="subtle">支持单文件统计，也支持双文件对比。上传主关键词数据文件后，可以再选一个对比文件，查看同一批词根的访客、成交和转化率变化。</p>
+      </div>
+
+      <div class="field">
+        <label for="sourceFile">主关键词数据文件</label>
+        <input id="sourceFile" type="file" accept=".xls,.xlsx,.csv">
+      </div>
+
+      <div class="field">
+        <label for="compareFile">对比关键词数据文件</label>
+        <input id="compareFile" type="file" accept=".xls,.xlsx,.csv">
+        <div class="subtle">这个文件可以不传；传了以后结果会自动切换成对比视图。</div>
+      </div>
+
+      <div class="field">
+        <label for="titleInput">标题</label>
+        <textarea id="titleInput" placeholder="在这里粘贴或输入标题"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="rootsInput">词根列表</label>
+        <textarea id="rootsInput" class="roots" placeholder="每行一个词根。载入文件并填写标题后，可以自动生成建议词根。"></textarea>
+        <div class="subtle">词根可以直接修改、增删。统计时会按这里的词根列表输出。</div>
+      </div>
+
+      <div class="field">
+        <label for="sortField">排序字段</label>
+        <select id="sortField">
+          <option value="visitors">访客数</option>
+          <option value="buyers">成交人数</option>
+          <option value="rate">转化率</option>
+          <option value="compareVisitors">对比访客数</option>
+          <option value="compareBuyers">对比成交人数</option>
+          <option value="compareRate">对比转化率</option>
+          <option value="visitorDelta">访客变化(主-对比)</option>
+          <option value="buyerDelta">成交变化(主-对比)</option>
+          <option value="rateDiff">转化率变化(主-对比)</option>
+        </select>
+        <div class="subtle">默认按访客数从多到少排序。切换排序字段后，结果会重新排序。</div>
+      </div>
+
+      <div class="actions">
+        <button id="autoDetectBtn" type="button" class="secondary" disabled>重算词根</button>
+        <button id="analyzeBtn" type="button" class="primary" disabled>生成结果</button>
+      </div>
+
+      <div class="actions">
+        <button id="sampleBtn" type="button" class="secondary">载入参考文件</button>
+        <button id="downloadBtn" type="button" class="primary" disabled>导出输出.xls</button>
+      </div>
+
+      <div id="status" class="status">等待文件和标题</div>
+    </aside>
+
+    <main class="content">
+      <div class="topbar">
+        <div>
+          <h2>结果预览</h2>
+          <p class="subtle">单文件时输出词根统计；双文件时输出对比结果。访客明显下滑或转化率变低的行会直接提醒。</p>
+        </div>
+        <div class="chip-row" id="fileMeta"></div>
+      </div>
+
+      <section class="summary">
+        <div class="metric">
+          <span>词根数</span>
+          <strong id="rootCount">0</strong>
+          <small id="rootCountCompare">对比：0</small>
+        </div>
+        <div class="metric">
+          <span>匹配访客数</span>
+          <strong id="visitorTotal">0</strong>
+          <small id="visitorTotalCompare">对比：0</small>
+        </div>
+        <div class="metric">
+          <span>成交人数</span>
+          <strong id="buyerTotal">0</strong>
+          <small id="buyerTotalCompare">对比：0</small>
+        </div>
+        <div class="metric">
+          <span>关键词行数</span>
+          <strong id="rowCount">0</strong>
+          <small id="rowCountCompare">对比：0</small>
+        </div>
+      </section>
+
+      <section id="resultWrap" class="hint">先上传关键词数据文件，再输入标题。准备好后可以自动拆词或直接生成结果。</section>
+    </main>
+  </div>
+
+  <script>
+    const SHEETJS_URL = "./xlsx.full.min.js";
+    const VISITOR_HEADERS = ["访客数", "visitors", "visitor", "traffic", "流量"];
+    const BUYER_HEADERS = ["支付买家数", "成交人数", "成交数", "buyers", "orders", "sales"];
+    const KEYWORD_HEADERS = ["来源名称", "关键词", "keyword", "query", "search term", "search_term"];
+
+    const state = {
+      sampleTitle: "",
+      title: "",
+      primary: null,
+      compare: null,
+      outputRows: [],
+      compareMode: false,
+      sortField: "visitors"
+    };
+
+    const els = {
+      sourceFile: document.getElementById("sourceFile"),
+      compareFile: document.getElementById("compareFile"),
+      titleInput: document.getElementById("titleInput"),
+      rootsInput: document.getElementById("rootsInput"),
+      sortField: document.getElementById("sortField"),
+      autoDetectBtn: document.getElementById("autoDetectBtn"),
+      analyzeBtn: document.getElementById("analyzeBtn"),
+      sampleBtn: document.getElementById("sampleBtn"),
+      downloadBtn: document.getElementById("downloadBtn"),
+      status: document.getElementById("status"),
+      fileMeta: document.getElementById("fileMeta"),
+      rootCount: document.getElementById("rootCount"),
+      rootCountCompare: document.getElementById("rootCountCompare"),
+      visitorTotal: document.getElementById("visitorTotal"),
+      visitorTotalCompare: document.getElementById("visitorTotalCompare"),
+      buyerTotal: document.getElementById("buyerTotal"),
+      buyerTotalCompare: document.getElementById("buyerTotalCompare"),
+      rowCount: document.getElementById("rowCount"),
+      rowCountCompare: document.getElementById("rowCountCompare"),
+      resultWrap: document.getElementById("resultWrap")
+    };
+
+    function setStatus(message, isError = false) {
+      els.status.textContent = message;
+      els.status.classList.toggle("error", isError);
+    }
+
+    function formatNumber(value) {
+      return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value || 0);
+    }
+
+    function formatRate(buyers, visitors) {
+      if (!visitors) return "0.0%";
+      return `${((buyers / visitors) * 100).toFixed(1)}%`;
+    }
+
+    function rateValue(buyers, visitors) {
+      if (!visitors) return 0;
+      return (buyers / visitors) * 100;
+    }
+
+    function isWeakRow(row) {
+      return row.visitors === 0 || row.buyers === 0 || rateValue(row.buyers, row.visitors) < 5;
+    }
+
+    function compareFlags(baseRow, compareRow) {
+      const visitorDelta = baseRow.visitors - compareRow.visitors;
+      const buyerDelta = baseRow.buyers - compareRow.buyers;
+      const rateDiff = rateValue(baseRow.buyers, baseRow.visitors) - rateValue(compareRow.buyers, compareRow.visitors);
+      const visitorsDropRatio = compareRow.visitors > 0 ? (compareRow.visitors - baseRow.visitors) / compareRow.visitors : 0;
+      return {
+        visitorDelta,
+        buyerDelta,
+        visitorsDropRatio,
+        rateDiff,
+        compareWeak: visitorsDropRatio >= 0.2 || rateDiff <= -0.5,
+        reason: [
+          visitorsDropRatio >= 0.2 ? "最近访客下降明显" : "",
+          rateDiff <= -0.5 ? "最近转化率变低" : ""
+        ].filter(Boolean).join(" / ")
+      };
+    }
+
+    function numericRate(rateText) {
+      return Number(String(rateText || "0").replace("%", "")) || 0;
+    }
+
+    function sortRows(rows) {
+      const field = state.sortField || "visitors";
+      return [...rows].sort((a, b) => {
+        const valueOf = row => {
+          switch (field) {
+            case "buyers": return row.buyers || 0;
+            case "rate": return numericRate(row.rate);
+            case "compareVisitors": return row.compareVisitors || 0;
+            case "compareBuyers": return row.compareBuyers || 0;
+            case "compareRate": return numericRate(row.compareRate);
+            case "visitorDelta": return row.visitorDelta || 0;
+            case "buyerDelta": return row.buyerDelta || 0;
+            case "rateDiff": return row.rateDiff || 0;
+            default: return row.visitors || 0;
+          }
+        };
+        return valueOf(b) - valueOf(a) || (b.visitors || 0) - (a.visitors || 0) || a.root.localeCompare(b.root);
+      });
+    }
+
+    function normalizeHeader(value) {
+      return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+    }
+
+    function parseNumber(value) {
+      const text = String(value || "").replace(/,/g, "").trim();
+      const match = text.match(/-?\d+(?:\.\d+)?/);
+      return match ? Number(match[0]) : 0;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    function currentTitle() {
+      return els.titleInput.value.trim();
+    }
+
+    function hasReadyInputs() {
+      return Boolean(state.primary?.rows?.length && currentTitle());
+    }
+
+    function refreshButtons() {
+      const ready = hasReadyInputs();
+      els.autoDetectBtn.disabled = !ready;
+      els.analyzeBtn.disabled = !ready;
+    }
+
+    function findColumn(headers, candidates, label) {
+      const normalized = headers.map(normalizeHeader);
+      for (const candidate of candidates) {
+        const index = normalized.indexOf(normalizeHeader(candidate));
+        if (index >= 0) return headers[index];
+      }
+      const fuzzyIndex = normalized.findIndex(header => candidates.some(candidate => header.includes(normalizeHeader(candidate))));
+      if (fuzzyIndex >= 0) return headers[fuzzyIndex];
+      throw new Error(`找不到${label}列`);
+    }
+
+    async function ensureSheetJs() {
+      if (window.XLSX) return window.XLSX;
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = SHEETJS_URL;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Cannot load local Excel library. Keep index.html and xlsx.full.min.js in the same folder."));
+        document.head.appendChild(script);
+      });
+      return window.XLSX;
+    }
+    function isFileProtocol() {
+      return window.location.protocol === "file:";
+    }
+
+    function firstNonEmptySheet(workbook) {
+      for (const name of workbook.SheetNames) {
+        const sheet = workbook.Sheets[name];
+        const rows = workbook.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false });
+        if (rows.length) return { name, rows };
+      }
+      throw new Error("输入文件没有可读取的数据");
+    }
+
+    function extractPossibleTitle(rows) {
+      const firstRow = rows[0] || [];
+      const values = firstRow.map(value => String(value || "").trim()).filter(Boolean);
+      if (!values.length) return "";
+      if (values[0] === "标题" && values[1]) return values[1];
+      if (values.length >= 2) return values.slice(1).join(" ").trim();
+      return values[0];
+    }
+
+    function findHeaderRowIndex(rows) {
+      const index = rows.findIndex(row => row.some(cell => normalizeHeader(cell) === normalizeHeader("访客数")));
+      if (index < 0) throw new Error("没有找到关键词数据表头");
+      return index;
+    }
+
+    function parseInputRows(rows) {
+      const headerRowIndex = findHeaderRowIndex(rows);
+      const headers = (rows[headerRowIndex] || []).map(value => String(value || "").trim());
+      const keywordColumn = findColumn(headers, KEYWORD_HEADERS, "关键词");
+      const visitorColumn = findColumn(headers, VISITOR_HEADERS, "访客数");
+      const buyerColumn = findColumn(headers, BUYER_HEADERS, "成交人数");
+
+      const normalizedRows = rows
+        .slice(headerRowIndex + 1)
+        .filter(row => row.some(cell => String(cell || "").trim() !== ""))
+        .map(row => {
+          const item = {};
+          headers.forEach((header, index) => {
+            item[header] = row[index];
+          });
+          return item;
+        });
+
+      return { normalizedRows, keywordColumn, visitorColumn, buyerColumn };
+    }
+
+    function unique(array) {
+      return [...new Set(array)];
+    }
+
+    function buildCandidateStats(title, rows, keywordColumn, visitorColumn, buyerColumn) {
+      const candidates = new Map();
+      const keywordRows = rows.map(row => ({
+        keyword: String(row[keywordColumn] || "").trim(),
+        visitors: parseNumber(row[visitorColumn]),
+        buyers: parseNumber(row[buyerColumn])
+      })).filter(row => row.keyword);
+
+      const text = title.replace(/\s+/g, "");
+      for (let start = 0; start < text.length; start += 1) {
+        for (let size = 1; size <= 6 && start + size <= text.length; size += 1) {
+          const root = text.slice(start, start + size);
+          if (!root.trim()) continue;
+          if (/^[A-Za-z]+$/.test(root) && root.length < 2) continue;
+          if (/^\d$/.test(root)) continue;
+          if (!/^[\u4e00-\u9fffA-Za-z0-9]+$/.test(root)) continue;
+          if (!/^[\u4e00-\u9fff]+$/.test(root) && !/^\d+$/.test(root) && !/^[A-Za-z]+$/.test(root)) continue;
+          if (/[\u4e00-\u9fff]/.test(root) && [...root].length > 4) continue;
+
+          let visitors = 0;
+          let buyers = 0;
+          let matches = 0;
+          for (const row of keywordRows) {
+            if (!row.keyword.includes(root)) continue;
+            visitors += row.visitors;
+            buyers += row.buyers;
+            matches += 1;
+          }
+          if (!matches) continue;
+          candidates.set(root, { root, visitors, buyers, matches, length: [...root].length });
+        }
+      }
+      return candidates;
+    }
+
+    function hasSimilarLongerContainer(item, pool) {
+      return pool.some(other =>
+        other.root !== item.root &&
+        other.length > item.length &&
+        other.root.includes(item.root) &&
+        other.visitors >= item.visitors * 0.95
+      );
+    }
+
+    function isComposite(root, candidates, candidateList) {
+      for (let cut = 1; cut < root.length; cut += 1) {
+        const left = root.slice(0, cut);
+        const right = root.slice(cut);
+        const leftItem = candidates.get(left);
+        const rightItem = candidates.get(right);
+        const item = candidates.get(root);
+        if (!leftItem || !rightItem || !item) continue;
+        if (leftItem.length < 2 || rightItem.length < 2) continue;
+        if (hasSimilarLongerContainer(leftItem, candidateList) && hasSimilarLongerContainer(rightItem, candidateList)) continue;
+        if (leftItem.visitors >= item.visitors * 0.8 && rightItem.visitors >= item.visitors * 0.8) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function autoDetectRoots(title, rows, keywordColumn, visitorColumn, buyerColumn) {
+      const candidates = buildCandidateStats(title, rows, keywordColumn, visitorColumn, buyerColumn);
+      const candidateList = [...candidates.values()];
+      const strong = candidateList
+        .filter(item => item.length >= 2 || /^\d+$/.test(item.root))
+        .filter(item => item.visitors >= 5)
+        .filter(item => !hasSimilarLongerContainer(item, candidateList))
+        .filter(item => !isComposite(item.root, candidates, candidateList))
+        .filter(item => {
+          if (/^\d+$/.test(item.root)) return item.root.length >= 2;
+          if (/^[A-Za-z]+$/.test(item.root)) return item.root.length >= 2;
+          if (/^[\u4e00-\u9fff]+$/.test(item.root) && item.length === 4) return item.visitors >= 50;
+          if (/^[\u4e00-\u9fff]+$/.test(item.root) && item.length === 3) return item.visitors >= 20;
+          return item.length === 2 || item.length === 4;
+        });
+
+      const plainTitle = title.replace(/\s+/g, "");
+      const covered = new Array(plainTitle.length).fill(false);
+      const markCovered = (root) => {
+        let start = plainTitle.indexOf(root);
+        while (start >= 0) {
+          for (let i = start; i < start + root.length; i += 1) {
+            covered[i] = true;
+          }
+          start = plainTitle.indexOf(root, start + 1);
+        }
+      };
+      const hasUncoveredChars = (root) => {
+        let start = plainTitle.indexOf(root);
+        while (start >= 0) {
+          for (let i = start; i < start + root.length; i += 1) {
+            if (!covered[i]) return true;
+          }
+          start = plainTitle.indexOf(root, start + 1);
+        }
+        return false;
+      };
+      const strongByStart = new Map();
+      for (const item of strong) {
+        let start = plainTitle.indexOf(item.root);
+        while (start >= 0) {
+          if (!strongByStart.has(start)) strongByStart.set(start, []);
+          strongByStart.get(start).push(item);
+          start = plainTitle.indexOf(item.root, start + 1);
+        }
+      }
+
+      const result = [];
+      const seen = new Set();
+      for (let index = 0; index < plainTitle.length;) {
+        const options = (strongByStart.get(index) || []).sort((a, b) => b.length - a.length || b.visitors - a.visitors);
+        const chosen = options[0];
+        if (chosen) {
+          if (!seen.has(chosen.root)) {
+            seen.add(chosen.root);
+            result.push(chosen.root);
+            markCovered(chosen.root);
+          }
+          index += chosen.root.length;
+          continue;
+        }
+        index += 1;
+      }
+
+      const extras = strong
+        .filter(item => !seen.has(item.root))
+        .filter(item => item.length === 2)
+        .filter(item => item.visitors >= 10)
+        .sort((a, b) => b.visitors - a.visitors || a.root.localeCompare(b.root));
+
+      for (const item of extras) {
+        if (seen.has(item.root)) continue;
+        seen.add(item.root);
+        result.push(item.root);
+        markCovered(item.root);
+      }
+
+      const uncoveredStrong = strong
+        .filter(item => !seen.has(item.root))
+        .filter(item => item.length >= 2)
+        .filter(item => hasUncoveredChars(item.root))
+        .sort((a, b) => b.length - a.length || b.visitors - a.visitors || a.root.localeCompare(b.root));
+
+      for (const item of uncoveredStrong) {
+        if (seen.has(item.root)) continue;
+        if (!hasUncoveredChars(item.root)) continue;
+        seen.add(item.root);
+        result.push(item.root);
+        markCovered(item.root);
+      }
+
+      return result;
+    }
+
+    function rootsFromTextarea() {
+      return unique(
+        els.rootsInput.value
+          .split(/\r?\n|,|，/)
+          .map(value => value.trim())
+          .filter(Boolean)
+      );
+    }
+
+    function summarizeDataset(roots, dataset) {
+      return roots.map(root => {
+        let visitors = 0;
+        let buyers = 0;
+        for (const row of dataset.rows) {
+          const keyword = String(row[dataset.keywordColumn] || "").trim();
+          if (!keyword.includes(root)) continue;
+          visitors += parseNumber(row[dataset.visitorColumn]);
+          buyers += parseNumber(row[dataset.buyerColumn]);
+        }
+        return {
+          root,
+          visitors,
+          buyers,
+          rate: formatRate(buyers, visitors),
+          weak: isWeakRow({ visitors, buyers })
+        };
+      });
+    }
+
+    function summarizeRoots(roots) {
+      const primaryRows = summarizeDataset(roots, state.primary);
+      if (!state.compare) {
+        return sortRows(primaryRows);
+      }
+
+      const compareRows = summarizeDataset(roots, state.compare);
+      const compareMap = new Map(compareRows.map(row => [row.root, row]));
+
+      const mergedRows = primaryRows.map(baseRow => {
+        const compareRow = compareMap.get(baseRow.root) || {
+          root: baseRow.root,
+          visitors: 0,
+          buyers: 0,
+          rate: "0.0%",
+          weak: true
+        };
+        const flags = compareFlags(baseRow, compareRow);
+        return {
+          root: baseRow.root,
+          visitors: baseRow.visitors,
+          buyers: baseRow.buyers,
+          rate: baseRow.rate,
+          weak: baseRow.weak || compareRow.weak,
+          compareVisitors: compareRow.visitors,
+          compareBuyers: compareRow.buyers,
+          compareRate: compareRow.rate,
+          visitorDelta: flags.visitorDelta,
+          buyerDelta: flags.buyerDelta,
+          visitorsDropRatio: flags.visitorsDropRatio,
+          rateDiff: flags.rateDiff,
+          compareWeak: flags.compareWeak,
+          compareReason: flags.reason
+        };
+      });
+      return sortRows(mergedRows);
+    }
+
+    function renderMeta() {
+      els.fileMeta.innerHTML = "";
+      const chips = [
+        state.primary?.workbookName ? `主文件：${state.primary.workbookName}` : "",
+        state.compare?.workbookName ? `对比文件：${state.compare.workbookName}` : "",
+        state.primary?.keywordColumn ? `关键词列：${state.primary.keywordColumn}` : "",
+        state.primary?.visitorColumn ? `访客列：${state.primary.visitorColumn}` : "",
+        state.primary?.buyerColumn ? `成交列：${state.primary.buyerColumn}` : ""
+      ].filter(Boolean);
+
+      chips.forEach(text => {
+        const chip = document.createElement("div");
+        chip.className = "chip";
+        chip.textContent = text;
+        els.fileMeta.appendChild(chip);
+      });
+    }
+
+    function renderResult(rows) {
+      state.compareMode = Boolean(state.compare);
+      state.outputRows = rows;
+      els.rootCount.textContent = formatNumber(rows.length);
+      els.rootCountCompare.textContent = state.compareMode ? `对比：${formatNumber(rows.length)}` : "对比：未加载";
+      els.visitorTotal.textContent = formatNumber(rows.reduce((sum, row) => sum + row.visitors, 0));
+      els.visitorTotalCompare.textContent = `对比：${formatNumber(rows.reduce((sum, row) => sum + (state.compareMode ? row.compareVisitors : 0), 0))}`;
+      els.buyerTotal.textContent = formatNumber(rows.reduce((sum, row) => sum + row.buyers, 0));
+      els.buyerTotalCompare.textContent = `对比：${formatNumber(rows.reduce((sum, row) => sum + (state.compareMode ? row.compareBuyers : 0), 0))}`;
+      els.rowCount.textContent = formatNumber(state.primary.rows.length);
+      els.rowCountCompare.textContent = `对比：${formatNumber(state.compare?.rows?.length || 0)}`;
+      if (!state.compareMode) {
+        els.visitorTotalCompare.textContent = "对比：未加载";
+        els.buyerTotalCompare.textContent = "对比：未加载";
+        els.rowCountCompare.textContent = "对比：未加载";
+      }
+      els.downloadBtn.disabled = rows.length === 0;
+
+      if (!rows.length) {
+        els.resultWrap.className = "hint";
+        els.resultWrap.textContent = "没有统计结果，请检查词根或输入数据。";
+        return;
+      }
+
+      els.resultWrap.className = "result-card";
+      els.resultWrap.innerHTML = state.compareMode ? `
+        <table>
+          <thead>
+            <tr>
+              <th>词根</th>
+              <th class="number">主文件访客</th>
+              <th class="number">对比文件访客</th>
+              <th class="number">访客变化<br>主-对比</th>
+              <th class="number">主文件成交</th>
+              <th class="number">对比文件成交</th>
+              <th class="number">成交变化<br>主-对比</th>
+              <th class="number">主文件转化率</th>
+              <th class="number">对比文件转化率</th>
+              <th class="number">转化率变化<br>主-对比</th>
+              <th>提醒</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr class="${row.compareWeak ? "compare-row" : row.weak ? "warn-row" : ""}">
+                <td>${escapeHtml(row.root)}</td>
+                <td class="number">${formatNumber(row.visitors)}</td>
+                <td class="number">${formatNumber(row.compareVisitors)}</td>
+                <td class="number ${row.visitorDelta < 0 ? "delta-down" : row.visitorDelta > 0 ? "delta-up" : ""}">
+                  ${row.visitorDelta > 0 ? "+" : ""}${formatNumber(row.visitorDelta)}
+                </td>
+                <td class="number">${formatNumber(row.buyers)}</td>
+                <td class="number">${formatNumber(row.compareBuyers)}</td>
+                <td class="number ${row.buyerDelta < 0 ? "delta-down" : row.buyerDelta > 0 ? "delta-up" : ""}">
+                  ${row.buyerDelta > 0 ? "+" : ""}${formatNumber(row.buyerDelta)}
+                </td>
+                <td class="number">${row.rate}</td>
+                <td class="number">${row.compareRate}</td>
+                <td class="number ${row.rateDiff < 0 ? "delta-down" : row.rateDiff > 0 ? "delta-up" : ""}">
+                  ${row.rateDiff > 0 ? "+" : ""}${row.rateDiff.toFixed(1)}%
+                </td>
+                <td>${row.compareWeak ? `<span class="compare-note">${escapeHtml(row.compareReason || "数据下滑")}</span>` : row.weak ? `<span class="compare-note" style="background: rgba(240,195,109,0.18); color:#9a6700;">数据偏弱</span>` : ""}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `
+        <table>
+          <thead>
+            <tr>
+              <th>词根</th>
+              <th class="number">访客数</th>
+              <th class="number">成交人数</th>
+              <th class="number">转化率</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr class="${row.weak ? "warn-row" : ""}">
+                <td>${escapeHtml(row.root)}</td>
+                <td class="number">${formatNumber(row.visitors)}</td>
+                <td class="number">${formatNumber(row.buyers)}</td>
+                <td class="number">${row.rate}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function readWorkbookData(file, preferredName) {
+      const XLSX = await ensureSheetJs();
+      XLSX.utils = XLSX.utils || window.XLSX.utils;
+      if (!file && isFileProtocol()) {
+        throw new Error("Reference file auto-load is unavailable in file mode. Please upload the data file directly.");
+      }
+      const arrayBuffer = file ? await file.arrayBuffer() : await fetch("\u8f93\u5165.xls").then(res => {
+        if (!res.ok) {
+          throw new Error("Failed to read reference file.");
+        }
+        return res.arrayBuffer();
+      });
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      workbook.utils = XLSX.utils;
+      const active = firstNonEmptySheet(workbook);
+      const parsed = parseInputRows(active.rows);
+      return {
+        workbookName: preferredName || file?.name || "\u8f93\u5165.xls",
+        sampleTitle: extractPossibleTitle(active.rows),
+        rows: parsed.normalizedRows,
+        keywordColumn: parsed.keywordColumn,
+        visitorColumn: parsed.visitorColumn,
+        buyerColumn: parsed.buyerColumn
+      };
+    }
+
+    function refreshAfterDataChange(message) {
+      renderMeta();
+      refreshButtons();
+
+      if (!currentTitle() && state.sampleTitle) {
+        els.titleInput.value = state.sampleTitle;
+      }
+
+      if (hasReadyInputs()) {
+        const roots = autoDetectRoots(
+          currentTitle(),
+          state.primary.rows,
+          state.primary.keywordColumn,
+          state.primary.visitorColumn,
+          state.primary.buyerColumn
+        );
+        els.rootsInput.value = roots.join("\n");
+        setStatus(message);
+      } else {
+        setStatus(message);
+      }
+    }
+
+    function exportWorkbook() {
+      if (!state.outputRows.length) return;
+      const XLSX = window.XLSX;
+      const workbook = XLSX.utils.book_new();
+      const rows = state.compareMode ? [
+        [currentTitle()],
+        ["词根", "主文件访客", "对比文件访客", "访客变化(主-对比)", "主文件成交", "对比文件成交", "成交变化(主-对比)", "主文件转化率", "对比文件转化率", "转化率变化(主-对比)", "提醒"],
+        ...state.outputRows.map(row => [
+          row.root,
+          row.visitors,
+          row.compareVisitors,
+          row.visitorDelta,
+          row.buyers,
+          row.compareBuyers,
+          row.buyerDelta,
+          row.rate,
+          row.compareRate,
+          `${row.rateDiff > 0 ? "+" : ""}${row.rateDiff.toFixed(1)}%`,
+          row.compareWeak ? row.compareReason || "数据下滑" : row.weak ? "数据偏弱" : ""
+        ])
+      ] : [
+        [currentTitle()],
+        ["词根", "访客数", "成交人数", "转化率"],
+        ...state.outputRows.map(row => [row.root, row.visitors, row.buyers, row.rate])
+      ];
+      const sheet1 = XLSX.utils.aoa_to_sheet(rows);
+      const sheet2 = XLSX.utils.aoa_to_sheet([]);
+      const sheet3 = XLSX.utils.aoa_to_sheet([]);
+
+      state.outputRows.forEach((row, index) => {
+        if (!(state.compareMode ? row.compareWeak || row.weak : row.weak)) return;
+        const sheetRow = index + 3;
+        const columns = state.compareMode ? ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"] : ["A", "B", "C", "D"];
+        const color = state.compareMode && row.compareWeak ? "FFE1D6" : "FFF3BF";
+        columns.forEach(col => {
+          const cellRef = `${col}${sheetRow}`;
+          if (!sheet1[cellRef]) return;
+          sheet1[cellRef].s = {
+            fill: {
+              patternType: "solid",
+              fgColor: { rgb: color }
+            }
+          };
+        });
+      });
+
+      XLSX.utils.book_append_sheet(workbook, sheet1, "Sheet1");
+      XLSX.utils.book_append_sheet(workbook, sheet2, "Sheet2");
+      XLSX.utils.book_append_sheet(workbook, sheet3, "Sheet3");
+      XLSX.writeFile(workbook, "输出.xls", { bookType: "biff8" });
+    }
+
+    els.sourceFile.addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        setStatus("正在读取主关键词数据文件...");
+        state.primary = await readWorkbookData(file, file.name);
+        state.sampleTitle = state.primary.sampleTitle;
+        els.resultWrap.className = "hint";
+        els.resultWrap.textContent = "主文件已读取。确认标题后，可以重算词根或直接生成结果。";
+        refreshAfterDataChange(`已载入主文件 ${state.primary.workbookName}，识别到 ${state.primary.rows.length} 行关键词数据`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+
+    els.compareFile.addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) {
+        state.compare = null;
+        renderMeta();
+        return;
+      }
+      try {
+        setStatus("正在读取对比关键词数据文件...");
+        state.compare = await readWorkbookData(file, file.name);
+        els.resultWrap.className = "hint";
+        els.resultWrap.textContent = "对比文件已读取。生成结果后会自动显示对比变化。";
+        refreshAfterDataChange(`已载入对比文件 ${state.compare.workbookName}，识别到 ${state.compare.rows.length} 行关键词数据`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+
+    els.titleInput.addEventListener("input", () => {
+      state.title = currentTitle();
+      refreshButtons();
+    });
+
+    els.sortField.addEventListener("change", () => {
+      state.sortField = els.sortField.value;
+      if (state.outputRows.length) {
+        renderResult(sortRows(state.outputRows));
+      }
+    });
+
+    els.autoDetectBtn.addEventListener("click", () => {
+      try {
+        if (!hasReadyInputs()) throw new Error("请先上传文件并填写标题");
+        const roots = autoDetectRoots(
+          currentTitle(),
+          state.primary.rows,
+          state.primary.keywordColumn,
+          state.primary.visitorColumn,
+          state.primary.buyerColumn
+        );
+        els.rootsInput.value = roots.join("\n");
+        setStatus(`已重新生成 ${roots.length} 个建议词根`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+
+    els.analyzeBtn.addEventListener("click", () => {
+      try {
+        if (!hasReadyInputs()) throw new Error("请先上传文件并填写标题");
+        const roots = rootsFromTextarea();
+        if (!roots.length) throw new Error("请先填写词根列表");
+        const rows = summarizeRoots(roots);
+        renderResult(rows);
+        setStatus(`统计完成，共输出 ${rows.length} 个词根`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+
+    els.downloadBtn.addEventListener("click", () => {
+      try {
+        exportWorkbook();
+        setStatus("已导出 输出.xls");
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+
+    els.sampleBtn.addEventListener("click", async () => {
+      try {
+        if (isFileProtocol()) {
+          throw new Error("File mode does not support auto-loading the sample. Please upload 输入.xls directly.");
+        }
+        setStatus("Loading sample file...");
+        state.primary = await readWorkbookData(null, "\u8f93\u5165.xls");
+        state.sampleTitle = state.primary.sampleTitle;
+        if (hasReadyInputs()) {
+          const rows = summarizeRoots(rootsFromTextarea());
+          renderResult(rows);
+          setStatus("Sample file loaded and analysis complete.");
+        } else {
+          refreshAfterDataChange(`Loaded sample file ${state.primary.workbookName}, detected ${state.primary.rows.length} keyword rows`);
+        }
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+  </script>
+</body>
+</html>
